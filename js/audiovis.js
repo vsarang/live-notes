@@ -29,9 +29,7 @@ var LiveRenderer = {
     LiveRenderer.lastBar.stave.addClef('treble').setContext(LiveRenderer.context).draw();
   },
 
-  addSample: function(voice, noteCode, sampleDuration, silence) {
-    var suffix = silence ? 'r' : '';
-
+  addSample: function(noteCode, sampleDuration, silence) {
     while (sampleDuration > 0) {
       var barDuration = LiveRenderer.remainingDuration(LiveRenderer.lastBar.notes);
 
@@ -46,24 +44,21 @@ var LiveRenderer = {
         sampleDuration = barDuration;
       }
 
-      var notes = LiveRenderer.notesFromDuration(sampleDuration);
-      for (var i = 0; i < notes.length; i++) {
-        notes[i] = new Vex.Flow.StaveNote({
-          keys: [noteCode],
-          duration: notes[i] + suffix
-        });
-      }
-      LiveRenderer.lastBar.notes = LiveRenderer.lastBar.notes.concat(notes);
-      //if (notes.length > 1) {
-      //  LiveRenderer.lastBar.beams.push(new Vex.Flow.Beam(notes));
-      //}
+      var notes = LiveRenderer.getNotes(noteCode, sampleDuration, silence);
+      notes.forEach(function(note) {
+        if (note instanceof Array) {
+          LiveRenderer.lastBar.notes = LiveRenderer.lastBar.notes.concat(note);
+        } else {
+          LiveRenderer.lastBar.notes.push(note);
+        }
+      });
 
       sampleDuration = clippedDuration;
     }
   },
 
-  addSilence: function(voice, duration) {
-    LiveRenderer.addSample(voice, 'b/4', duration, true);
+  addSilence: function(duration) {
+    LiveRenderer.addSample('b/4', duration, true);
   },
 
   nextBar: function() {
@@ -107,52 +102,62 @@ var LiveRenderer = {
     });
   },
 
-  notesFromDuration: function(duration) {
+  getNotes: function(noteCode, duration, rest) {
     if (duration < LiveRenderer.BAR_DURATION / 16) {
       return [];
-    } else if (duration < LiveRenderer.BAR_DURATION / 8) {
-      return LiveRenderer.notesFromDuration(duration - LiveRenderer.BAR_DURATION / 16).concat([['16']]);
-    } else if (duration < LiveRenderer.BAR_DURATION / 4) {
-      return LiveRenderer.notesFromDuration(duration - LiveRenderer.BAR_DURATION / 8).concat([['8']]);
-    } else if (duration < LiveRenderer.BAR_DURATION / 2) {
-      return LiveRenderer.notesFromDuration(duration - LiveRenderer.BAR_DURATION / 4).concat([['4']]);
-    } else if (duration < LiveRenderer.BAR_DURATION) {
-      return LiveRenderer.notesFromDuration(duration - LiveRenderer.BAR_DURATION / 2).concat([['2']]);
-    } else {
-      return [['1']];
     }
+
+    var noteType;
+    for (noteType = 16; noteType > 1; noteType /= 2) {
+      if (duration < LiveRenderer.BAR_DURATION / (noteType / 2)) {
+        break;
+      }
+    }
+
+    var remainingDuration = duration - LiveRenderer.BAR_DURATION / noteType;
+    var notes = LiveRenderer.getNotes(noteCode, remainingDuration, rest);
+    var note = new Vex.Flow.StaveNote({
+      keys: [noteCode],
+      duration: rest ? noteType + 'r' : noteType.toString()
+    });
+
+    if (noteType < 8) {
+      notes.push(note);
+    } else {
+      if (notes.length == 0 || !(notes[notes.length - 1] instanceof Array)) {
+        notes.push([]);
+      }
+      notes[notes.length - 1].push(note);
+    }
+
+    return notes;
   },
 
-  // duration in sixteenths
   durationFromNoteType: function(noteType) {
+    var base = LiveRenderer.BAR_DURATION / 16;
     switch (noteType) {
       case '16':
       case '16r':
-        return 1;
+        return base;
       case '8':
       case '8r':
-        return 2;
+        return 2 * base;
       case '4':
       case '4r':
-        return 4;
+        return 4 * base;
       case '2':
       case '2r':
-        return 8;
+        return 8 * base;
       default:
-        return 16;
+        return 16 * base;
     }
   },
 
-  // returns true or the ms remaining in the bar
   remainingDuration: function(bar) {
-    var sixteenths = 0;
+    var duration = 0;
     bar.forEach(function(note) {
-      sixteenths += LiveRenderer.durationFromNoteType(note.duration);
+      duration += LiveRenderer.durationFromNoteType(note.duration);
     });
-    if (sixteenths < 16) {
-      return (16 - sixteenths) * LiveRenderer.BAR_DURATION / 16;
-    } else {
-      return 0;
-    }
+    return LiveRenderer.BAR_DURATION - duration;
   }
 };

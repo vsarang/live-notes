@@ -197,12 +197,12 @@ function updatePitch(time) {
     } else {
       if (prev) {
         if (prev.freq === 0) {
-          LiveRenderer.addSilence('voice1', prev.duration);
+          LiveRenderer.addSilence(prev.duration);
         } else {
           var noteIndex = noteFromPitch(prev.freq);
           var level = Math.floor(noteIndex / 12) - 1;
           var noteCode = noteStrings[noteIndex % 12].toLowerCase() + '/' + level;
-          LiveRenderer.addSample('voice1', noteCode, prev.duration);
+          LiveRenderer.addSample(noteCode, prev.duration);
         }
       }
       prev = cur;
